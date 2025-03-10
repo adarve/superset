@@ -77,11 +77,21 @@ const DeckMulti = (props: DeckMultiProps) => {
           // Filters applied to multi_deck are passed down to underlying charts
           // note that dashboard contextual information (filter_immune_slices and such) aren't
           // taken into consideration here
+          // Get all filters including dashboard filters
           const filters = [
             ...(subslice.form_data.filters || []),
             ...(formData.filters || []),
             ...(formData.extra_filters || []),
           ];
+          
+          // Add dashboard applied filters if available
+          // These come from dashboard filter components or cross-filtering
+          if (payload.applied_filters && Array.isArray(payload.applied_filters)) {
+            filters.push(...payload.applied_filters);
+          } else if (payload.data && payload.data.applied_filters && Array.isArray(payload.data.applied_filters)) {
+            // Check alternate location in payload structure
+            filters.push(...payload.data.applied_filters);
+          }
           const subsliceCopy = {
             ...subslice,
             form_data: {
@@ -121,13 +131,24 @@ const DeckMulti = (props: DeckMultiProps) => {
   );
 
   const prevDeckSlices = usePrevious(props.formData.deck_slices);
+  const prevExtraFilters = usePrevious(props.formData.extra_filters);
+  const prevAppliedFilters = usePrevious(
+    props.payload.applied_filters || 
+    (props.payload.data && props.payload.data.applied_filters)
+  );
+  
   useEffect(() => {
     const { formData, payload } = props;
-    const hasChanges = !isEqual(prevDeckSlices, formData.deck_slices);
+    const currentAppliedFilters = payload.applied_filters || 
+                               (payload.data && payload.data.applied_filters);
+                               
+    const hasChanges = !isEqual(prevDeckSlices, formData.deck_slices) || 
+                      !isEqual(prevExtraFilters, formData.extra_filters) ||
+                      !isEqual(prevAppliedFilters, currentAppliedFilters);
     if (hasChanges) {
       loadLayers(formData, payload);
     }
-  }, [loadLayers, prevDeckSlices, props]);
+  }, [loadLayers, prevDeckSlices, prevExtraFilters, prevAppliedFilters, props]);
 
   const { payload, formData, setControlValue, height, width } = props;
   const layers = Object.values(subSlicesLayers);
