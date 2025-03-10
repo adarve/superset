@@ -23,7 +23,7 @@ import GridChartPlugin from './layers/Grid';
 import HexChartPlugin from './layers/Hex';
 import HeatmapChartPlugin from './layers/Heatmap';
 import MultiChartPlugin from './Multi';
-import MultiDirectChartPlugin, { DECK_MULTI_DIRECT_ID } from './Multi/MultiDirectPlugin';
+import MultiDirectChartPlugin, { DECK_MULTI_DIRECT_ID } from './MultiDirect';
 import PathChartPlugin from './layers/Path';
 import PolygonChartPlugin from './layers/Polygon';
 import ScatterChartPlugin from './layers/Scatter';
