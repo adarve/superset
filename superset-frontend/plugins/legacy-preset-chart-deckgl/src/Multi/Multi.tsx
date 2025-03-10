@@ -80,8 +80,20 @@ const DeckMulti = (props: DeckMultiProps) => {
       const filterState = {
         // Look for standard filter properties
         filters: formData.filters || [],
-        extraFilters: formData.extra_filters || [],
-        adhocFilters: formData.adhoc_filters || [],
+        
+        // Look for extra_filters in multiple possible locations
+        extraFilters: [
+          ...(formData.extra_filters || []),
+          ...(payload.form_data?.extra_filters || []),
+          ...(payload.data?.form_data?.extra_filters || [])
+        ],
+        
+        // Look for adhoc_filters in multiple possible locations
+        adhocFilters: [
+          ...(formData.adhoc_filters || []),
+          ...(payload.form_data?.adhoc_filters || []),
+          ...(payload.data?.form_data?.adhoc_filters || [])
+        ],
         
         // Look for dashboard filter state in various locations
         nativeFilters: payload.nativeFilters || 
@@ -101,7 +113,42 @@ const DeckMulti = (props: DeckMultiProps) => {
                     formData.dashboard_id
       };
       
+      // Log complete payload to see all available filter data
+      console.log('Complete payload structure:', JSON.stringify(payload, null, 2));
+      console.log('Form data structure:', JSON.stringify(formData, null, 2));
+      
+      // Deep search for any filter-related properties in the payload
+      const findFilters = (obj: any, path = '') => {
+        if (!obj || typeof obj !== 'object') return;
+        
+        Object.entries(obj).forEach(([key, value]) => {
+          const currentPath = path ? `${path}.${key}` : key;
+          
+          if (key.includes('filter') || 
+              key === 'extra_filters' || 
+              key === 'adhoc_filters' ||
+              key === 'time_range') {
+            console.log(`Found filter data at ${currentPath}:`, value);
+            
+            // If we found filter data in a new location, add it to filterState
+            if (key === 'extra_filters' && Array.isArray(value) && value.length > 0) {
+              filterState.extraFilters = [...filterState.extraFilters, ...value];
+            }
+            if (key === 'adhoc_filters' && Array.isArray(value) && value.length > 0) {
+              filterState.adhocFilters = [...filterState.adhocFilters, ...value];
+            }
+          }
+          
+          // Continue recursively searching
+          findFilters(value, currentPath);
+        });
+      };
+      
+      // Search entire payload for filter data
+      findFilters(payload);
+      
       console.log('Filter state extracted:', filterState);
+      console.log('Extra filters specifically:', filterState.extraFilters);
       
       payload.data.slices.forEach(
         (subslice: { slice_id: number } & JsonObject) => {
@@ -175,37 +222,78 @@ const DeckMulti = (props: DeckMultiProps) => {
             console.error('Error parsing hash parameters:', e);
           }
           
+          console.log(`Creating subchart request for slice ${subslice.slice_id} with filters:`, {
+            filters,
+            extraFilters: filterState.extraFilters,
+            adhocFilters: filterState.adhocFilters,
+            timeRange: formData.time_range,
+            dashboardId: filterState.dashboardId
+          });
+          
           // Create a copy of the subslice with combined filters for the API request
           const subsliceCopy = {
             ...subslice,
             form_data: {
               ...subslice.form_data,
+              
+              // CRITICAL: Explicitly apply all filter types to ensure they're included
+              // in the API request
+              
+              // Standard WHERE clause filters
               filters,
-              // Pass extra_filters directly as well to ensure they're included
+              
+              // Extra filters (typically from dashboard filters)
               extra_filters: filterState.extraFilters,
-              // Include adhoc_filters if present
-              ...(filterState.adhocFilters.length > 0 ? { adhoc_filters: filterState.adhocFilters } : {}),
+              
+              // Adhoc filters (SQL expressions)
+              adhoc_filters: filterState.adhocFilters,
+              
               // Include time_range if it exists in parent (important for time filtering)
               ...(formData.time_range ? { time_range: formData.time_range } : {}),
+              
               // Pass dashboard ID to ensure server can use cache coordination
               ...(filterState.dashboardId ? { dashboard_id: filterState.dashboardId } : {}),
+              
+              // Add flag to ensure we get filtered results
+              filtered: true,
+              
               // Include force flag to make sure we get latest data
               force: true
             },
           };
 
+          // Add time filter from the URL if present and not already included
+          if (!subsliceCopy.form_data.time_range && urlParams.has('time_range')) {
+            subsliceCopy.form_data.time_range = urlParams.get('time_range');
+            console.log(`Adding time_range from URL:`, subsliceCopy.form_data.time_range);
+          }
+          
+          // Create an enhanced parameter object
+          const enhancedParams = {
+            ...dashboardQueryParams,
+            // Add additional flags to force fresh data and indicate filtering
+            force: 'true',
+            dashboard_id: filterState.dashboardId || undefined,
+            dashboard_filter: 'true',
+            
+            // Explicitly pass filter params again in the URL
+            ...(subsliceCopy.form_data.extra_filters && subsliceCopy.form_data.extra_filters.length > 0 
+                ? { extra_filters: JSON.stringify(subsliceCopy.form_data.extra_filters) } 
+                : {}),
+            
+            ...(subsliceCopy.form_data.adhoc_filters && subsliceCopy.form_data.adhoc_filters.length > 0 
+                ? { adhoc_filters: JSON.stringify(subsliceCopy.form_data.adhoc_filters) }
+                : {})
+          };
+          
+          console.log(`Enhanced URL params for subchart ${subslice.slice_id}:`, enhancedParams);
+          
           // Get the URL with the form_data parameters
           const url = getExploreLongUrl(
             subsliceCopy.form_data, 
             'json', 
             true, 
-            {
-              ...dashboardQueryParams,
-              // Add additional flags to force fresh data and indicate filtering
-              force: 'true',
-              dashboard_id: filterState.dashboardId || undefined,
-              dashboard_filter: 'true'
-            }
+            enhancedParams
           );
 
           if (url) {
@@ -290,6 +378,28 @@ const DeckMulti = (props: DeckMultiProps) => {
       payload,
       queriesData: payload,  // For consistency with naming in other places
     });
+    
+    // Check for filter data in query results
+    if (payload?.queries) {
+      console.log('Looking for filter data in payload.queries:', payload.queries);
+      payload.queries.forEach((query: any, index: number) => {
+        if (query?.filters || query?.extras?.filters || query?.extras?.where) {
+          console.log(`Found filter data in query ${index}:`, {
+            filters: query.filters,
+            extras: query.extras
+          });
+        }
+      });
+    }
+    
+    // Check for filter data in additional locations
+    if (payload?.form_data?.filters) {
+      console.log('Found filters in payload.form_data:', payload.form_data.filters);
+    }
+    
+    if (payload?.form_data?.extra_filters) {
+      console.log('Found extra_filters in payload.form_data:', payload.form_data.extra_filters);
+    }
     
     // Check various conditions that should trigger a reload of layers
     const slicesChanged = !isEqual(prevDeckSlices, formData.deck_slices);
