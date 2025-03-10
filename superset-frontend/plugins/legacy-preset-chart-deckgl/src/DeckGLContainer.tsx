@@ -92,13 +92,19 @@ export const DeckGLContainer = memo(
     );
 
     const layers = useCallback(() => {
+      console.log('DeckGLContainer - processing layers:', props.layers);
+      
       // Support for layer factory
       if (props.layers.some(l => typeof l === 'function')) {
-        return props.layers.map(l =>
+        const processedLayers = props.layers.map(l =>
           typeof l === 'function' ? l() : l,
         ) as Layer[];
+        
+        console.log('DeckGLContainer - processed layers:', processedLayers);
+        return processedLayers;
       }
 
+      console.log('DeckGLContainer - using layers directly:', props.layers);
       return props.layers as Layer[];
     }, [props.layers]);
 

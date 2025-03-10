@@ -38,14 +38,18 @@ export function commonLayerProps(
   setTooltipContent: (content: JsonObject) => ReactNode,
   onSelect?: (value: JsonValue) => void,
 ) {
+  console.log('Common layer props - processing formData:', formData);
+  
   const fd = formData;
   let onHover;
   let tooltipContentGenerator = setTooltipContent;
   if (fd.js_tooltip) {
+    console.log('Common layer props - using custom tooltip JS:', fd.js_tooltip);
     tooltipContentGenerator = sandboxedEval(fd.js_tooltip);
   }
   if (tooltipContentGenerator) {
     onHover = (o: JsonObject) => {
+      console.log('Common layer props - hover event:', o);
       if (o.picked) {
         setTooltip({
           content: tooltipContentGenerator(o),

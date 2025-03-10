@@ -224,21 +224,37 @@ const DeckMulti = (props: DeckMultiProps) => {
                   // Make sure json.data exists even if empty
                   const processedJson = json.data ? json : { ...json, data: { features: [] } };
                   
-                  // @ts-ignore TODO(hainenber): define proper type for `form_data.viz_type` and call signature for functions in layerGenerators.
-                  const layer = layerGenerators[subsliceCopy.form_data.viz_type](
-                    subsliceCopy.form_data,
-                    processedJson,
-                    props.onAddFilter,
-                    setTooltip,
-                    props.datasource,
-                    [],
-                    props.onSelect,
-                  );
+                  console.log(`Processing data for subchart ${subslice.slice_id}:`, processedJson);
                   
-                  setSubSlicesLayers(subSlicesLayers => ({
-                    ...subSlicesLayers,
-                    [subsliceCopy.slice_id]: layer,
-                  }));
+                  try {
+                    // @ts-ignore TODO(hainenber): define proper type for `form_data.viz_type` and call signature for functions in layerGenerators.
+                    const layer = layerGenerators[subsliceCopy.form_data.viz_type](
+                      subsliceCopy.form_data,
+                      processedJson,
+                      props.onAddFilter,
+                      setTooltip,
+                      props.datasource,
+                      [],
+                      props.onSelect,
+                    );
+                    
+                    console.log(`Generated layer for subchart ${subslice.slice_id}:`, layer);
+                    
+                    if (layer) {
+                      setSubSlicesLayers(subSlicesLayers => {
+                        const newLayers = {
+                          ...subSlicesLayers,
+                          [subsliceCopy.slice_id]: layer,
+                        };
+                        console.log(`Updated subSlicesLayers, now has ${Object.keys(newLayers).length} layers`);
+                        return newLayers;
+                      });
+                    } else {
+                      console.error(`Layer generator returned null/undefined for subchart ${subslice.slice_id}`);
+                    }
+                  } catch (error) {
+                    console.error(`Error generating layer for subchart ${subslice.slice_id}:`, error);
+                  }
                 }
               })
               .catch((error) => {
@@ -381,7 +397,10 @@ const DeckMulti = (props: DeckMultiProps) => {
 
   const { payload, formData, setControlValue, height, width } = props;
   const layers = Object.values(subSlicesLayers);
-
+  
+  // Log layers being passed to DeckGL
+  console.log('Multi chart - final layers being rendered:', layers);
+  
   return (
     <DeckGLContainerStyledWrapper
       ref={containerRef}
