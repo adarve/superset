@@ -92,37 +92,100 @@ const DeckMulti = (props: DeckMultiProps) => {
             // Check alternate location in payload structure
             filters.push(...payload.data.applied_filters);
           }
+
+          // Create copy of the subslice with combined filters
           const subsliceCopy = {
             ...subslice,
             form_data: {
               ...subslice.form_data,
               filters,
+              // Add extra_filters to ensure they're included in the API call
+              extra_filters: [
+                ...(subslice.form_data.extra_filters || []),
+                ...(formData.extra_filters || []),
+              ],
+              // Also pass any cross-filtering data to ensure it's applied
+              ...(payload.cross_filters ? { cross_filters: payload.cross_filters } : {}),
+              ...(payload.data && payload.data.cross_filters ? { cross_filters: payload.data.cross_filters } : {}),
             },
           };
 
           const url = getExploreLongUrl(subsliceCopy.form_data, 'json');
 
           if (url) {
+            // First try with all filters
             SupersetClient.get({
               endpoint: url,
             })
               .then(({ json }) => {
-                // @ts-ignore TODO(hainenber): define proper type for `form_data.viz_type` and call signature for functions in layerGenerators.
-                const layer = layerGenerators[subsliceCopy.form_data.viz_type](
-                  subsliceCopy.form_data,
-                  json,
-                  props.onAddFilter,
-                  setTooltip,
-                  props.datasource,
-                  [],
-                  props.onSelect,
-                );
-                setSubSlicesLayers(subSlicesLayers => ({
-                  ...subSlicesLayers,
-                  [subsliceCopy.slice_id]: layer,
-                }));
+                // Process the filtered data response
+                if (json) {
+                  // Ensure json has a data object even if empty
+                  const jsonWithData = json.data ? json : { ...json, data: { features: [] } };
+                  
+                  // @ts-ignore TODO(hainenber): define proper type for `form_data.viz_type` and call signature for functions in layerGenerators.
+                  const layer = layerGenerators[subsliceCopy.form_data.viz_type](
+                    subsliceCopy.form_data,
+                    jsonWithData,
+                    props.onAddFilter,
+                    setTooltip,
+                    props.datasource,
+                    [],
+                    props.onSelect,
+                  );
+                  
+                  setSubSlicesLayers(subSlicesLayers => ({
+                    ...subSlicesLayers,
+                    [subsliceCopy.slice_id]: layer,
+                  }));
+                }
               })
-              .catch(() => {});
+              .catch((error) => {
+                // If request fails, log error and try with a simpler filter setup
+                console.error(`Error fetching filtered data for sublayer ${subsliceCopy.slice_id}:`, error);
+                
+                // Try with basic filters as fallback
+                const simpleSubslice = {
+                  ...subslice,
+                  form_data: {
+                    ...subslice.form_data,
+                    filters: [...(subslice.form_data.filters || [])], 
+                    extra_filters: [...(formData.extra_filters || [])],
+                  },
+                };
+                
+                const simpleUrl = getExploreLongUrl(simpleSubslice.form_data, 'json');
+                if (simpleUrl) {
+                  SupersetClient.get({
+                    endpoint: simpleUrl,
+                  })
+                    .then(({ json }) => {
+                      if (json) {
+                        // Ensure json has a data object even if empty
+                        const jsonWithData = json.data ? json : { ...json, data: { features: [] } };
+                        
+                        // @ts-ignore 
+                        const layer = layerGenerators[simpleSubslice.form_data.viz_type](
+                          simpleSubslice.form_data,
+                          jsonWithData,
+                          props.onAddFilter,
+                          setTooltip,
+                          props.datasource,
+                          [],
+                          props.onSelect,
+                        );
+                      
+                      setSubSlicesLayers(subSlicesLayers => ({
+                        ...subSlicesLayers,
+                        [simpleSubslice.slice_id]: layer,
+                      }));
+                      }
+                    })
+                    .catch(() => {
+                      console.error(`Failed to load sublayer ${subsliceCopy.slice_id} even with simple filters`);
+                    });
+                }
+              });
           }
         },
       );
@@ -137,18 +200,26 @@ const DeckMulti = (props: DeckMultiProps) => {
     (props.payload.data && props.payload.data.applied_filters)
   );
   
+  const prevCrossFilters = usePrevious(
+    props.payload.cross_filters || 
+    (props.payload.data && props.payload.data.cross_filters)
+  );
+  
   useEffect(() => {
     const { formData, payload } = props;
     const currentAppliedFilters = payload.applied_filters || 
                                (payload.data && payload.data.applied_filters);
+    const currentCrossFilters = payload.cross_filters || 
+                             (payload.data && payload.data.cross_filters);
                                
     const hasChanges = !isEqual(prevDeckSlices, formData.deck_slices) || 
                       !isEqual(prevExtraFilters, formData.extra_filters) ||
-                      !isEqual(prevAppliedFilters, currentAppliedFilters);
+                      !isEqual(prevAppliedFilters, currentAppliedFilters) ||
+                      !isEqual(prevCrossFilters, currentCrossFilters);
     if (hasChanges) {
       loadLayers(formData, payload);
     }
-  }, [loadLayers, prevDeckSlices, prevExtraFilters, prevAppliedFilters, props]);
+  }, [loadLayers, prevDeckSlices, prevExtraFilters, prevAppliedFilters, prevCrossFilters, props]);
 
   const { payload, formData, setControlValue, height, width } = props;
   const layers = Object.values(subSlicesLayers);
