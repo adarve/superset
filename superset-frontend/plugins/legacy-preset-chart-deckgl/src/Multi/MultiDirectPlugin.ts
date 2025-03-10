@@ -21,6 +21,8 @@ import thumbnail from './images/thumbnail.png';
 import example from './images/example.png';
 import transformProps from '../transformProps';
 import controlPanel from './controlPanel';
+// We need to use the same key as registered in the preset
+export const DECK_MULTI_DIRECT_ID = 'deck_multi_direct';
 
 const metadata = new ChartMetadata({
   category: t('Map'),

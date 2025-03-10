@@ -57,6 +57,10 @@ export type DeckMultiDirectProps = {
  * 
  * This implementation assumes that all data needed for subcharts is
  * already in the main chart payload.
+ * 
+ * This component receives the same props as the regular Multi chart,
+ * but processes subchart data differently to ensure dashboard filters
+ * are properly applied.
  */
 const DeckMultiDirect = (props: DeckMultiDirectProps) => {
   const containerRef = useRef<DeckGLContainerHandle>();
@@ -82,6 +86,12 @@ const DeckMultiDirect = (props: DeckMultiDirectProps) => {
       
       // Start with fresh layers
       setSubSlicesLayers({});
+      
+      // Ensure we have the required structure in the payload
+      if (!payload?.data?.slices || !Array.isArray(payload.data.slices)) {
+        console.error('MultiDirect - Invalid payload format, missing data.slices array:', payload);
+        return;
+      }
       
       // Process each subslice
       if (payload.data?.slices) {
@@ -249,4 +259,7 @@ const DeckMultiDirect = (props: DeckMultiDirectProps) => {
   );
 };
 
-export default memo(DeckMultiDirect);
+const MemoizedDeckMultiDirect = memo(DeckMultiDirect);
+
+// Default export for dynamic import
+export default MemoizedDeckMultiDirect;

@@ -23,7 +23,7 @@ import GridChartPlugin from './layers/Grid';
 import HexChartPlugin from './layers/Hex';
 import HeatmapChartPlugin from './layers/Heatmap';
 import MultiChartPlugin from './Multi';
-import MultiDirectChartPlugin from './Multi/MultiDirectPlugin';
+import MultiDirectChartPlugin, { DECK_MULTI_DIRECT_ID } from './Multi/MultiDirectPlugin';
 import PathChartPlugin from './layers/Path';
 import PolygonChartPlugin from './layers/Polygon';
 import ScatterChartPlugin from './layers/Scatter';
@@ -41,7 +41,7 @@ export default class DeckGLChartPreset extends Preset {
         new HexChartPlugin().configure({ key: 'deck_hex' }),
         new HeatmapChartPlugin().configure({ key: 'deck_heatmap' }),
         new MultiChartPlugin().configure({ key: 'deck_multi' }),
-        new MultiDirectChartPlugin().configure({ key: 'deck_multi_direct' }),
+        new MultiDirectChartPlugin().configure({ key: DECK_MULTI_DIRECT_ID }),
         new PathChartPlugin().configure({ key: 'deck_path' }),
         new PolygonChartPlugin().configure({ key: 'deck_polygon' }),
         new ScatterChartPlugin().configure({ key: 'deck_scatter' }),
